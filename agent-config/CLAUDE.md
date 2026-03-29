@@ -1,42 +1,45 @@
 # Hypergrep -- Code Intelligence
 
-This project has `hypergrep` and `hypergrep-daemon` installed globally. Use hypergrep instead of grep/ripgrep for ALL code search operations.
+This project has `hypergrep` installed globally. Use it instead of grep/ripgrep for code search when you need structural understanding (function bodies, call graphs, impact analysis). For simple text pattern matching, ripgrep is fine.
 
-## Why
+## When to use hypergrep vs ripgrep
 
-hypergrep returns structural results (function bodies, signatures, call graphs) instead of raw text lines. This means you don't need to read entire files to understand what a function does -- the search result already includes the context you need.
-
-- 87% fewer tokens consumed per search compared to grep + file reads
-- Returns function signatures + what calls/is called by each result
-- Can answer "what breaks if I change this?" in one command
-- Can check "does this project use Redis?" in one command
+| Task | Use |
+|------|-----|
+| Quick text search | `rg "pattern" .` (faster for one-off) |
+| Find a function and understand it | `hypergrep -s "function" .` |
+| Search with token budget | `hypergrep --layer 1 --budget 800 --json "pattern" .` |
+| Who calls this? What breaks? | `hypergrep --callers` / `--impact` |
+| Does this project use X? | `hypergrep --exists "redis" .` |
+| Codebase overview | `hypergrep --model "" .` |
 
 ## Session start
 
-At the beginning of every session, run these two commands:
+Run once at the beginning of a session to understand the codebase:
 
 ```bash
-# 1. Start the daemon (keeps index in memory, auto-stops after 30 min idle)
-hypergrep-daemon --background .
-
-# 2. Load the codebase mental model (understand the project structure)
 hypergrep --model "" .
 ```
 
-The daemon makes all subsequent searches 7x faster (4ms vs 31ms). It auto-stops after 30 minutes of inactivity so it won't waste resources.
-
-## Commands (use these instead of grep/rg)
-
-### Finding code (replaces grep/rg)
+If you expect to make many searches (10+), start the daemon for faster queries:
 
 ```bash
-# Best for most searches: signatures + call graph, capped at 800 tokens
+hypergrep-daemon --background .
+# Auto-stops after 30 min idle. Check with: hypergrep-daemon --status .
+```
+
+## Commands
+
+### Finding code with context (saves tokens vs grep + file reads)
+
+```bash
+# Signatures + call graph, capped at 800 tokens (best default)
 hypergrep --layer 1 --budget 800 --json "pattern" .
 
-# When you need the full function body (to edit it)
+# Full function bodies (when you need to edit the code)
 hypergrep -s "pattern" .
 
-# When you just need file paths
+# File paths only
 hypergrep -l "pattern" .
 
 # Count matches
@@ -56,7 +59,7 @@ hypergrep --callees "function_name" .
 ### Before making changes
 
 ```bash
-# What breaks if I change this function? Always run before editing.
+# What breaks if I change this? Run before editing.
 hypergrep --impact "function_name" .
 
 # Output:
@@ -69,27 +72,16 @@ hypergrep --impact "function_name" .
 ```bash
 # Does this project use a specific technology?
 hypergrep --exists "redis" .
-hypergrep --exists "graphql" .
 
 # NO = definitely not present (guaranteed)
 # YES = likely present (confirm with a search if needed)
 ```
 
-### Daemon management
-
-```bash
-# Check if daemon is running (shows PID, memory, socket)
-hypergrep-daemon --status .
-
-# Stop the daemon manually (also stops on its own after 30 min idle)
-hypergrep-daemon --stop .
-```
-
 ## Rules
 
-1. At session start, run `hypergrep-daemon --background .` then `hypergrep --model "" .`
-2. For finding code, use `hypergrep --layer 1 --budget 800 --json "pattern" .` instead of `grep` or `rg`
-3. Before changing any function, run `hypergrep --impact "function_name" .` to check blast radius
-4. When you need to read a function's code, use `hypergrep -s "function_name" .` instead of reading the whole file
-5. To check if a library/technology is used, use `hypergrep --exists "name" .` instead of searching
-6. At session end, the daemon stops automatically. No cleanup needed.
+1. Run `hypergrep --model "" .` at session start to understand the codebase
+2. Use `hypergrep --layer 1 --budget 800 --json` when you need to understand what code does (not just find it)
+3. Use `rg` for quick text searches where you don't need structural context
+4. Before changing any function, run `hypergrep --impact "function_name" .`
+5. Use `hypergrep -s` instead of reading whole files when you need a specific function body
+6. Use `hypergrep --exists` to check for technologies instead of scanning
