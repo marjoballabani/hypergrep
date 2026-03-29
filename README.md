@@ -96,6 +96,19 @@ Same command as install -- always gets the latest release:
 curl -sSfL https://github.com/marjoballabani/hypergrep/releases/latest/download/hypergrep-installer.sh | sh
 ```
 
+### Uninstall
+
+```bash
+# Stop any running daemon
+hypergrep-daemon --stop . 2>/dev/null
+
+# Remove binaries
+rm -f $(which hypergrep) $(which hypergrep-daemon)
+
+# Remove index caches from your projects (optional)
+find ~ -name ".hypergrep" -type d -exec rm -rf {} + 2>/dev/null
+```
+
 ### Verify
 
 ```bash
