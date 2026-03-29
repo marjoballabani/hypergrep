@@ -84,41 +84,63 @@ impl Index {
 
         // Try loading cached index
         if let Some((files, posting_lists, bloom, stale)) = persist::load(&root) {
-            if stale.is_empty() {
-                let file_count = files.len();
-                let trigram_count = posting_lists.len();
-                let concept_count = bloom.len();
+            let file_count = files.len();
+            let trigram_count = posting_lists.len();
+            let stale_count = stale.len();
 
-                let index = Index {
-                    symbols: vec![Vec::new(); files.len()],
-                    parsed: vec![false; files.len()],
-                    files,
-                    posting_lists,
-                    graph: CodeGraph::build(&[]),
-                    bloom,
-                    mental_model: MentalModel::default(),
-                    root: root.clone(),
-                    structural_ready: false,
-                };
+            let mut index = Index {
+                symbols: vec![Vec::new(); files.len()],
+                parsed: vec![false; files.len()],
+                files,
+                posting_lists,
+                graph: CodeGraph::build(&[]),
+                bloom,
+                mental_model: MentalModel::default(),
+                root: root.clone(),
+                structural_ready: false,
+            };
 
+            if stale_count == 0 {
                 info!(
-                    "Loaded cached index: {} files, {} trigrams, {} concepts in {:?}",
+                    "Loaded cached index: {} files, {} trigrams in {:?}",
                     file_count,
                     trigram_count,
-                    concept_count,
                     start.elapsed()
                 );
+            } else {
+                // Incremental update: only re-index stale files
+                for doc_id in &stale {
+                    let path = index.files[*doc_id as usize].path.clone();
+                    let _ = index.update_file(&path, &root);
+                }
 
-                return Ok(index);
+                // Check for new files not in the cache
+                let indexed_paths: std::collections::HashSet<_> =
+                    index.files.iter().map(|f| f.path.clone()).collect();
+                let current_files = walker::walk_and_read(&root).unwrap_or_default();
+                for file in &current_files {
+                    if !indexed_paths.contains(&file.path) {
+                        let _ = index.update_file(&file.path, &root);
+                    }
+                }
+
+                // Save updated index
+                let _ = persist::save(&root, &index.files, &index.posting_lists, &index.bloom);
+
+                info!(
+                    "Incremental update: {} stale of {} files in {:?}",
+                    stale_count,
+                    file_count,
+                    start.elapsed()
+                );
             }
 
-            info!("{} stale files, rebuilding index", stale.len());
+            return Ok(index);
         }
 
-        // Build from scratch
+        // No cache at all -- build from scratch
         let index = Self::build_fresh(&root)?;
 
-        // Save for next time
         if let Err(e) = persist::save(&root, &index.files, &index.posting_lists, &index.bloom) {
             info!("Failed to save index cache: {}", e);
         }
