@@ -1,0 +1,17 @@
+[workspace]
+members = ["crates/hypergrep-core", "crates/hypergrep-daemon", "crates/hypergrep-cli"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "A codebase intelligence engine for AI agents"
+repository = "https://github.com/marjoballabani/hypergrep"
+keywords = ["search", "grep", "code-search", "ai-agent", "tree-sitter"]
+categories = ["command-line-utilities", "development-tools", "text-processing"]
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+strip = true

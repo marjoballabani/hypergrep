@@ -1,0 +1,149 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.*'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Get version from tag
+        id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Hypergrep ${{ steps.get_version.outputs.version }}
+          body: |
+            ## Install
+
+            **macOS / Linux (one-liner):**
+            ```bash
+            curl -sSfL https://github.com/marjoballabani/hypergrep/releases/download/${{ steps.get_version.outputs.version }}/hypergrep-installer.sh | sh
+            ```
+
+            **Or download the binary for your platform below.**
+
+            ## Changes
+            See [BENCHMARKS.md](https://github.com/marjoballabani/hypergrep/blob/main/BENCHMARKS.md) for performance numbers.
+          draft: false
+          prerelease: false
+
+  build:
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            os: macos-13
+            name: hypergrep-x86_64-apple-darwin
+          - target: aarch64-apple-darwin
+            os: macos-14
+            name: hypergrep-aarch64-apple-darwin
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: hypergrep-x86_64-unknown-linux-gnu
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: hypergrep-aarch64-unknown-linux-gnu
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (Linux ARM)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++" >> $GITHUB_ENV
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Run tests
+        if: matrix.target != 'aarch64-unknown-linux-gnu'
+        run: cargo test --release --target ${{ matrix.target }}
+
+      - name: Package
+        shell: bash
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          ARCHIVE="${{ matrix.name }}.tar.gz"
+
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/hypergrep dist/
+          cp target/${{ matrix.target }}/release/hypergrep-daemon dist/ || true
+          cp README.md dist/
+          cp LICENSE* dist/ 2>/dev/null || true
+
+          cd dist
+          tar czf "../${ARCHIVE}" *
+          cd ..
+
+          # Generate SHA256
+          if [[ "$OSTYPE" == "darwin"* ]]; then
+            shasum -a 256 "${ARCHIVE}" > "${ARCHIVE}.sha256"
+          else
+            sha256sum "${ARCHIVE}" > "${ARCHIVE}.sha256"
+          fi
+
+      - name: Upload binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ${{ matrix.name }}.tar.gz
+          asset_name: ${{ matrix.name }}.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload checksum
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ${{ matrix.name }}.tar.gz.sha256
+          asset_name: ${{ matrix.name }}.tar.gz.sha256
+          asset_content_type: text/plain
+
+  installer:
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload installer script
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: hypergrep-installer.sh
+          asset_name: hypergrep-installer.sh
+          asset_content_type: text/plain

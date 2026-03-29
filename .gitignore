@@ -1,0 +1,18 @@
+# Build
+/target/
+**/*.rs.bk
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Hypergrep index cache
+.hypergrep/
+
+# Debug
+*.dSYM/
+*.pdb
