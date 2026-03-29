@@ -3,7 +3,7 @@ members = ["crates/hypergrep-core", "crates/hypergrep-daemon", "crates/hypergrep
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 description = "A codebase intelligence engine for AI agents"
