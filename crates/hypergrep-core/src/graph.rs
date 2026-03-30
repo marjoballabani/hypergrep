@@ -285,9 +285,9 @@ struct CallRef {
 /// Extract function/method call references from source code using tree-sitter.
 fn extract_calls(content: &[u8], lang: Lang) -> Vec<CallRef> {
     let mut parser = Parser::new();
-    parser
-        .set_language(&lang.ts_language())
-        .expect("failed to set language");
+    if parser.set_language(&lang.ts_language()).is_err() {
+        return Vec::new();
+    }
 
     let tree = match parser.parse(content, None) {
         Some(t) => t,
@@ -454,9 +454,9 @@ fn extract_call_name(node: &tree_sitter::Node, source: &[u8], lang: Lang) -> Opt
 /// Extract import references from source code.
 fn extract_imports(content: &[u8], lang: Lang) -> Vec<PathBuf> {
     let mut parser = Parser::new();
-    parser
-        .set_language(&lang.ts_language())
-        .expect("failed to set language");
+    if parser.set_language(&lang.ts_language()).is_err() {
+        return Vec::new();
+    }
 
     let tree = match parser.parse(content, None) {
         Some(t) => t,
