@@ -251,7 +251,6 @@ fn is_likely_symbol_name(s: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
     use tempfile::TempDir;
 
     #[test]

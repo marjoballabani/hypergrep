@@ -251,7 +251,10 @@ impl Lang {
 pub fn parse_symbols(content: &[u8], lang: Lang) -> Vec<Symbol> {
     let mut parser = Parser::new();
     if parser.set_language(&lang.ts_language()).is_err() {
-        tracing::warn!("Skipping parse: tree-sitter language ABI mismatch for {:?}", lang);
+        tracing::warn!(
+            "Skipping parse: tree-sitter language ABI mismatch for {:?}",
+            lang
+        );
         return Vec::new();
     }
 
