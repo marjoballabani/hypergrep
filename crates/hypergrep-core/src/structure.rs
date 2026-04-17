@@ -250,9 +250,13 @@ impl Lang {
 /// Parse a source file and extract all symbols.
 pub fn parse_symbols(content: &[u8], lang: Lang) -> Vec<Symbol> {
     let mut parser = Parser::new();
-    parser
-        .set_language(&lang.ts_language())
-        .expect("failed to set language");
+    if parser.set_language(&lang.ts_language()).is_err() {
+        tracing::warn!(
+            "Skipping parse: tree-sitter language ABI mismatch for {:?}",
+            lang
+        );
+        return Vec::new();
+    }
 
     let tree = match parser.parse(content, None) {
         Some(t) => t,
